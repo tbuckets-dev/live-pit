@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  # --- Database for Airflow and MLflow ---
+  postgres:
+    image: postgres:13
+    container_name: f1_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=pitstop
+      - POSTGRES_DB=f1_metadata
+    ports:
+      - "5432:5432"
+
+  # --- MLflow Tracking Server ---
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.10.2
+    container_name: f1_mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - BACKEND_STORE_URI=postgresql://postgres:pitstop@postgres:5432/f1_metadata
+    command: >
+      mlflow server 
+      --backend-store-uri postgresql://postgres:pitstop@postgres:5432/f1_metadata
+      --default-artifact-root ./mlruns
+      --host 0.0.0.0
+
+  # --- Airflow Scheduler & Webserver ---
+  # Note: For simplicity, this is a "LocalExecutor" setup
+  airflow:
+    image: apache/airflow:2.8.1-python3.10
+    container_name: f1_airflow
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:pitstop@postgres:5432/f1_metadata
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/plugins/src
+      - ./data:/opt/airflow/data
+    ports:
+      - "8080:8080"
+    command: standalone
+
+volumes:
+  postgres_data:
