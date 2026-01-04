@@ -4,10 +4,10 @@ __pycache__/
 .venv/
 
 # F1 Data (Managed by DVC)
-# Ignore data files but allow directories and .dvc metadata files
-/data/*
-!/data/*/
-!*.dvc
+/data/**
+!/data/**/
+!/data/**/*.dvc
+!/data/**/.gitignore
 /models/*.pkl
 
 # Environment/Secrets
