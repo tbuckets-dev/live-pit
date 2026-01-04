@@ -1,0 +1,6 @@
+[core]
+    remote = cloudflare
+[remote "cloudflare"]
+    url = s3://live-pit/
+    endpointurl = https://092436e13922a48eef6ce9d6ec4d1fdd.r2.cloudflarestorage.com
+    region = auto

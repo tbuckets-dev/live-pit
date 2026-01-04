@@ -4,7 +4,10 @@ __pycache__/
 .venv/
 
 # F1 Data (Managed by DVC)
-/data/
+/data/**
+!/data/**/
+!/data/**/*.dvc
+!/data/**/.gitignore
 /models/*.pkl
 
 # Environment/Secrets
