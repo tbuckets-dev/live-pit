@@ -5,16 +5,24 @@ from datetime import datetime
 import argparse
 import pandera.pandas as pa
 from pandera import Column, Check
+import dotenv
+
+# Load the environment variables
+dotenv.load_dotenv()
 
 # Parse the arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--year', type=int, required=True, help='The year of the race')
 parser.add_argument('--race', type=str, required=True, help='The name of the race')
 parser.add_argument('--driver', type=str, required=True, help='The driver code')
+
 args = parser.parse_args()
 
 # Add the cache directory to the cache
-fastf1.Cache.enable_cache(os.path.join(os.path.dirname(__file__), '../../data/cache'))
+cache_dir = os.getenv('FASTF1_CACHE_DIR')
+if not cache_dir:
+    cache_dir = os.path.join(os.path.dirname(__file__), '../../data/cache')
+fastf1.Cache.enable_cache(cache_dir)
 
 # Define the expected schema for the race data
 race_data_schema = pa.DataFrameSchema(
@@ -25,7 +33,7 @@ race_data_schema = pa.DataFrameSchema(
         'LapTime_Sec': Column(float, Check.gt(0)),
         'driver_code': Column(str),
         'race_name': Column(str),
-        'year': Column(int)
+        'year': Column(int),
     }
 )
 
@@ -36,12 +44,16 @@ def ingest_race_data(year, race, driver):
     session = fastf1.get_session(year, race, 'R')
     session.load(laps=True, telemetry=False, weather=False)
 
-    # Get the laps data
-    laps = session.laps.pick_drivers([driver])
-    df = pd.DataFrame(laps[['LapNumber', 'Compound', 'LapTime']])
+    # Get the all accurate laps for the driver
+    laps = session.laps.pick_drivers([driver]).pick_accurate()
+    # Filter the laps where the track status is 1
+    laps = laps[laps['TrackStatus'] == '1']
+
+    df = pd.DataFrame(laps[['LapNumber', 'Compound', 'LapTime', 'IsAccurate']])
 
     # Convert the LapTime to seconds
-    df['LapTime_Sec'] = df['LapTime'].dt.total_seconds()
+    df['LapTime_Sec'] = df['LapTime'].astype('int64') / 1000000000
+    # Convert the LapTime to int64
     df['LapTime'] = df['LapTime'].astype('int64')
 
     # Add the driver code and race name and year
@@ -63,4 +75,11 @@ try:
 except pa.errors.SchemaErrors as exc:
     print(f"Validation failed with errors: {exc.failure_cases}")
 
-df.to_csv(f'../../data/raw/race_data_{args.year}_{args.race}_{args.driver}.csv', index=False)
+# Define the output directory and file
+output_dir = os.path.join(os.path.dirname(__file__), '../../data/raw')
+os.makedirs(output_dir, exist_ok=True)
+output_path = os.path.join(output_dir, f'race_data_{args.year}_{args.race}_{args.driver}.csv')
+
+# Save the dataframe
+df.to_csv(output_path, index=False)
+print(f"Data saved to {output_path}")
