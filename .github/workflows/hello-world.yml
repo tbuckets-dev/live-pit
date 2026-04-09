@@ -1,32 +1,38 @@
-name: Hello World Workflow
+name: Python Application
 
-# When should this workflow run?
-# These triggers respond to common development events
-on:
-  push:
-  pull_request:
+on: [push, pull_request]
 
-# What work should be done?
-# Jobs run independently on separate virtual machines
 jobs:
-  say-hello:
-    # Use Ubuntu Linux for consistency and tool availability
+  test:
     runs-on: ubuntu-latest
 
-    # Steps execute sequentially within each job
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
     steps:
-      # Download your repository's code into the virtual machine
-      - name: Get the code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Run commands just like you would locally
-      - name: Say hello
-        run: echo "Hello, GitHub Actions!"
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
-      # Access information about this workflow run
-      - name: Show context information
+      - name: Install dependencies
         run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Triggered by: ${{ github.event_name }}"
-          echo "User: ${{ github.actor }}"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run linting
+        run: |
+          flake8 src tests
+          black --check src tests
+
+      - name: Run tests
+        run: |
+          pytest tests/ --cov=src --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
